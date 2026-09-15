@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Harbor Language 路 Admin</title>
+<title>Harbor Language &middot; Admin</title>
 <style>
 body{font-family:system-ui,sans-serif;max-width:72rem;margin:2rem auto;line-height:1.4;padding:0 1rem}
 button{cursor:pointer}
@@ -27,8 +27,8 @@ pre{white-space:pre-wrap;font-size:.78rem;margin:0}
 <body>
 <main>
 <h1>Admin console</h1>
-<p class="muted"><a href="/">鈥� Learner app</a></p>
-<p id="gate">Checking access鈥�</p>
+<p class="muted"><a href="/">&larr; Learner app</a></p>
+<p id="gate">Checking access...</p>
 
 <div id="app" class="hidden">
 
@@ -183,11 +183,11 @@ pre{white-space:pre-wrap;font-size:.78rem;margin:0}
       qs('#d-profile').innerHTML =
         '<p><strong>' + esc(u.name) + '</strong> &lt;' + esc(u.email) + '&gt; ' +
         '<span class="badge ' + (u.role === 'admin' ? 'admin' : '') + '">' + esc(u.role) + '</span><br>' +
-        '<span class="muted">id ' + esc(u.id) + ' 路 joined ' + fmt(u.createdAt) + '</span></p>';
+        '<span class="muted">id ' + esc(u.id) + ' &middot; joined ' + fmt(u.createdAt) + '</span></p>';
 
       var actions = qs('#d-role-actions');
       if (u.id === me.id) {
-        actions.innerHTML = '<span class="muted">This is your own account 鈥� another admin must change your role.</span>';
+        actions.innerHTML = '<span class="muted">This is your own account - another admin must change your role.</span>';
       } else {
         var target = u.role === 'admin' ? 'learner' : 'admin';
         actions.innerHTML = '<button id="d-role-btn" type="button">' +

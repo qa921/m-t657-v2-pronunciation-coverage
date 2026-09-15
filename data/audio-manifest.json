@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-09-15T08:15:00Z",
+  "source": "runtime audit of data/curriculum.json against public/audio/ on 2026-09-15",
+  "states": {
+    "available": "a recording exists at src and playback may be attempted",
+    "unavailable": "no recording exists for this prompt; the client must not attempt playback and must not report it as a playback failure"
+  },
+  "summary": {
+    "es": { "prompts": 8, "available": 7, "unavailable": 1 },
+    "fr": { "prompts": 8, "available": 6, "unavailable": 2 },
+    "ja": { "prompts": 8, "available": 7, "unavailable": 1 },
+    "de": { "prompts": 8, "available": 7, "unavailable": 1 }
+  },
+  "entries": {
+    "es.buenos-dias": { "promptId": "es-01", "language": "es", "text": "Buenos días", "src": "/audio/es/buenos-dias.wav", "status": "available" },
+    "es.como-estas": { "promptId": "es-02", "language": "es", "text": "¿Cómo estás?", "src": "/audio/es/como-estas.wav", "status": "available" },
+    "es.me-llamo-ana": { "promptId": "es-03", "language": "es", "text": "Me llamo Ana", "src": "/audio/es/me-llamo-ana.wav", "status": "available" },
+    "es.gracias": { "promptId": "es-04", "language": "es", "text": "Gracias", "src": "/audio/es/gracias.wav", "status": "available" },
+    "es.por-favor": { "promptId": "es-05", "language": "es", "text": "Por favor", "src": "/audio/es/por-favor.wav", "status": "available" },
+    "es.hasta-manana": { "promptId": "es-06", "language": "es", "text": "Hasta mañana", "src": "/audio/es/hasta-manana.wav", "status": "available" },
+    "es.no-entiendo": { "promptId": "es-07", "language": "es", "text": "No entiendo", "src": "/audio/es/no-entiendo.wav", "status": "available" },
+    "es.donde-esta-estacion": { "promptId": "es-08", "language": "es", "text": "¿Dónde está la estación?", "src": null, "status": "unavailable", "reason": "recording_missing" },
+    "fr.bonjour": { "promptId": "fr-01", "language": "fr", "text": "Bonjour", "src": "/audio/fr/bonjour.wav", "status": "available" },
+    "fr.comment-ca-va": { "promptId": "fr-02", "language": "fr", "text": "Comment ça va?", "src": "/audio/fr/comment-ca-va.wav", "status": "available" },
+    "fr.je-mappelle-luc": { "promptId": "fr-03", "language": "fr", "text": "Je m'appelle Luc", "src": "/audio/fr/je-mappelle-luc.wav", "status": "available" },
+    "fr.merci-beaucoup": { "promptId": "fr-04", "language": "fr", "text": "Merci beaucoup", "src": "/audio/fr/merci.wav", "status": "available" },
+    "fr.sil-vous-plait": { "promptId": "fr-05", "language": "fr", "text": "S'il vous plaît", "src": "/audio/fr/sil-vous-plait.wav", "status": "available" },
+    "fr.a-demain": { "promptId": "fr-06", "language": "fr", "text": "À demain", "src": "/audio/fr/a-demain.wav", "status": "available" },
+    "fr.je-ne-comprends-pas": { "promptId": "fr-07", "language": "fr", "text": "Je ne comprends pas", "src": null, "status": "unavailable", "reason": "recording_missing" },
+    "fr.ou-est-la-gare": { "promptId": "fr-08", "language": "fr", "text": "Où est la gare?", "src": null, "status": "unavailable", "reason": "recording_missing" },
+    "ja.ohayo-gozaimasu": { "promptId": "ja-01", "language": "ja", "text": "おはようございます", "src": "/audio/ja/ohayo-gozaimasu.wav", "status": "available" },
+    "ja.genki-desu-ka": { "promptId": "ja-02", "language": "ja", "text": "元気ですか", "src": "/audio/ja/genki-desu-ka.wav", "status": "available" },
+    "ja.watashi-wa-yuki": { "promptId": "ja-03", "language": "ja", "text": "私はユキです", "src": "/audio/ja/watashi-yuki.wav", "status": "available" },
+    "ja.arigato-gozaimasu": { "promptId": "ja-04", "language": "ja", "text": "ありがとうございます", "src": "/audio/ja/arigato-gozaimasu.wav", "status": "available" },
+    "ja.onegai-shimasu": { "promptId": "ja-05", "language": "ja", "text": "お願いします", "src": "/audio/ja/onegai-shimasu.wav", "status": "available" },
+    "ja.mata-ashita": { "promptId": "ja-06", "language": "ja", "text": "また明日", "src": "/audio/ja/mata-ashita.wav", "status": "available" },
+    "ja.wakarimasen": { "promptId": "ja-07", "language": "ja", "text": "わかりません", "src": "/audio/ja/wakarimasen.wav", "status": "available" },
+    "ja.eki-wa-doko": { "promptId": "ja-08", "language": "ja", "text": "駅はどこ", "src": null, "status": "unavailable", "reason": "recording_missing" },
+    "de.guten-morgen": { "promptId": "de-01", "language": "de", "text": "Guten Morgen", "src": "/audio/de/guten-morgen.wav", "status": "available" },
+    "de.wie-geht-es-dir": { "promptId": "de-02", "language": "de", "text": "Wie geht es dir?", "src": "/audio/de/wie-geht-es-dir.wav", "status": "available" },
+    "de.ich-heisse-mia": { "promptId": "de-03", "language": "de", "text": "Ich heiße Mia", "src": "/audio/de/ich-heisse-mia.wav", "status": "available" },
+    "de.vielen-dank": { "promptId": "de-04", "language": "de", "text": "Vielen Dank", "src": "/audio/de/vielen-dank.wav", "status": "available" },
+    "de.bitte": { "promptId": "de-05", "language": "de", "text": "Bitte", "src": "/audio/de/bitte.wav", "status": "available" },
+    "de.bis-morgen": { "promptId": "de-06", "language": "de", "text": "Bis morgen", "src": "/audio/de/bis-morgen.wav", "status": "available" },
+    "de.ich-verstehe-nicht": { "promptId": "de-07", "language": "de", "text": "Ich verstehe nicht", "src": "/audio/de/ich-verstehe-nicht.wav", "status": "available" },
+    "de.wo-ist-bahnhof": { "promptId": "de-08", "language": "de", "text": "Wo ist der Bahnhof?", "src": null, "status": "unavailable", "reason": "recording_missing" }
+  }
+}

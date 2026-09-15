@@ -1,1 +1,74 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Harbor Language · M-T657-V2</title></head><body><main><h1>Harbor Language</h1><p id="status">Loading lesson…</p><button id="play">Play pronunciation</button></main><script>Promise.all([fetch('/data/curriculum.json').then(r=>r.json()),fetch('/data/stale-audio-manifest.json').then(r=>r.json())]).then(([c,m])=>{const p=c.prompts[0];document.querySelector('#status').textContent=p.language+' · '+p.text;document.querySelector('#play').onclick=()=>{const a=new Audio(m.entries[p.spokenTextKey]);a.play().catch(()=>document.querySelector('#status').textContent='Playback failed.');};}).catch(()=>document.querySelector('#status').textContent='Playback failed.');</script></body></html>
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Harbor Language · M-T657-V2</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:40rem;margin:2rem auto;line-height:1.4}
+#status[data-state="ready"]{color:#146c2e}
+#status[data-state="playing"]{color:#146c2e}
+#status[data-state="unavailable"]{color:#8a6d00}
+#status[data-state="playback_failed"]{color:#b00020}
+#status[data-state="data_error"]{color:#b00020}
+</style>
+</head>
+<body>
+<main>
+<h1>Harbor Language</h1>
+<p id="status" data-state="loading">Loading lesson…</p>
+<p id="detail"></p>
+<button id="play" disabled>Play pronunciation</button>
+</main>
+<script>
+// Learner audio states:
+//   loading         – lesson data is being fetched
+//   ready           – a recording exists and can be played
+//   playing         – playback in progress
+//   unavailable     – no recording exists for this prompt; playback is never attempted
+//   playback_failed – a recording exists but playback actually failed
+//   data_error      – curriculum/manifest could not be loaded at all
+(function () {
+  var statusEl = document.querySelector('#status');
+  var detailEl = document.querySelector('#detail');
+  var playBtn = document.querySelector('#play');
+  function setState(state, msg) {
+    statusEl.dataset.state = state;
+    statusEl.textContent = msg;
+  }
+  Promise.all([
+    fetch('/data/curriculum.json').then(function (r) { if (!r.ok) throw new Error('curriculum'); return r.json(); }),
+    fetch('/data/audio-manifest.json').then(function (r) { if (!r.ok) throw new Error('manifest'); return r.json(); })
+  ]).then(function (results) {
+    var curriculum = results[0], manifest = results[1];
+    var prompt = curriculum.prompts[0];
+    var entry = manifest.entries[prompt.spokenTextKey];
+    detailEl.textContent = prompt.language + ' · ' + prompt.text;
+    if (!entry || entry.status !== 'available' || !entry.src) {
+      setState('unavailable', 'Recording unavailable — this prompt has not been recorded yet.');
+      playBtn.disabled = true;
+      return;
+    }
+    setState('ready', 'Ready to play.');
+    playBtn.disabled = false;
+    playBtn.onclick = function () {
+      playBtn.disabled = true;
+      setState('playing', 'Playing…');
+      var audio = new Audio(entry.src);
+      function onPlaybackFailure() {
+        setState('playback_failed', 'Playback failed — the recording exists but could not be played.');
+        playBtn.disabled = false;
+      }
+      audio.addEventListener('error', onPlaybackFailure);
+      audio.addEventListener('ended', function () {
+        setState('ready', 'Ready to play.');
+        playBtn.disabled = false;
+      });
+      audio.play().catch(onPlaybackFailure);
+    };
+  }).catch(function () {
+    setState('data_error', 'Lesson data failed to load.');
+  });
+})();
+</script>
+</body>
+</html>

@@ -2,49 +2,277 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Harbor Language · M-T657-V2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbor Language 路 M-T657-V2</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:40rem;margin:2rem auto;line-height:1.4}
+body{font-family:system-ui,sans-serif;max-width:52rem;margin:2rem auto;line-height:1.4;padding:0 1rem}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.5}
+input,select{padding:.35rem;margin:.15rem 0}
+card,.card{border:1px solid #ccc;border-radius:8px;padding:1rem;margin:1rem 0}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.muted{color:#666;font-size:.9rem}
+.prompt{display:inline-block;margin:.15rem;padding:.3rem .6rem;border:1px solid #bbb;border-radius:6px;background:#fff}
+.prompt[aria-pressed="true"]{background:#146c2e;color:#fff;border-color:#146c2e}
+.lang-tab{margin:.15rem;padding:.3rem .7rem;border:1px solid #bbb;border-radius:6px;background:#f6f6f6}
+.lang-tab.active{background:#222;color:#fff}
+.st-new{color:#8a6d00}
+.st-in_progress{color:#146c2e}
+.st-completed{color:#0b5bd3;font-weight:600}
+/* Learner audio states (contract preserved from the audio-coverage release): */
 #status[data-state="ready"]{color:#146c2e}
 #status[data-state="playing"]{color:#146c2e}
 #status[data-state="unavailable"]{color:#8a6d00}
 #status[data-state="playback_failed"]{color:#b00020}
 #status[data-state="data_error"]{color:#b00020}
+.hidden{display:none}
+#auth-bar{float:right}
+.msg{color:#b00020}
 </style>
 </head>
 <body>
+<div id="auth-bar" class="row"></div>
 <main>
 <h1>Harbor Language</h1>
-<p id="status" data-state="loading">Loading lesson…</p>
-<p id="detail"></p>
-<button id="play" disabled>Play pronunciation</button>
+
+<section id="auth-card" class="card hidden">
+  <div class="row">
+    <button id="tab-login" class="lang-tab active" type="button">Log in</button>
+    <button id="tab-register" class="lang-tab" type="button">Register</button>
+  </div>
+  <form id="form-login">
+    <div><input type="email" id="login-email" placeholder="Email" required autocomplete="email"></div>
+    <div><input type="password" id="login-password" placeholder="Password" required autocomplete="current-password"></div>
+    <button type="submit">Log in</button>
+  </form>
+  <form id="form-register" class="hidden">
+    <div><input id="reg-name" placeholder="Display name" required autocomplete="name"></div>
+    <div><input type="email" id="reg-email" placeholder="Email" required autocomplete="email"></div>
+    <div><input type="password" id="reg-password" placeholder="Password (min 8 chars)" required minlength="8" autocomplete="new-password"></div>
+    <button type="submit">Create account</button>
+  </form>
+  <p id="auth-msg" class="msg"></p>
+  <p class="muted">Your progress is saved to your account. New accounts are always learner accounts.</p>
+</section>
+
+<section id="progress-summary" class="card hidden">
+  <strong>Your progress:</strong> <span id="progress-text"></span>
+</section>
+
+<section class="card">
+  <div id="lang-tabs" class="row"></div>
+  <div id="prompt-list"></div>
+  <hr>
+  <p id="status" data-state="loading">Loading lesson鈥�</p>
+  <p id="detail"></p>
+  <div class="row">
+    <button id="play" disabled>Play pronunciation</button>
+    <button id="complete" disabled>Mark complete</button>
+    <span id="prompt-state" class="muted"></span>
+  </div>
+</section>
 </main>
 <script>
-// Learner audio states:
-//   loading         – lesson data is being fetched
-//   ready           – a recording exists and can be played
-//   playing         – playback in progress
-//   unavailable     – no recording exists for this prompt; playback is never attempted
-//   playback_failed – a recording exists but playback actually failed
-//   data_error      – curriculum/manifest could not be loaded at all
+// Learner audio states (unchanged contract from the audio-coverage release):
+//   loading         鈥� lesson data is being fetched
+//   ready           鈥� a recording exists and can be played
+//   playing         鈥� playback in progress
+//   unavailable     鈥� no recording exists for this prompt; playback is never attempted
+//   playback_failed 鈥� a recording exists but playback actually failed
+//   data_error      鈥� curriculum/manifest could not be loaded at all
 (function () {
   var statusEl = document.querySelector('#status');
   var detailEl = document.querySelector('#detail');
   var playBtn = document.querySelector('#play');
+  var completeBtn = document.querySelector('#complete');
+  var promptStateEl = document.querySelector('#prompt-state');
+  var promptListEl = document.querySelector('#prompt-list');
+  var langTabsEl = document.querySelector('#lang-tabs');
+
+  var curriculum = null, manifest = null;
+  var currentLang = 'es';
+  var currentPrompt = null;
+  var currentUser = null;
+  var progressMap = {};
+
   function setState(state, msg) {
     statusEl.dataset.state = state;
     statusEl.textContent = msg;
   }
-  Promise.all([
-    fetch('/data/curriculum.json').then(function (r) { if (!r.ok) throw new Error('curriculum'); return r.json(); }),
-    fetch('/data/audio-manifest.json').then(function (r) { if (!r.ok) throw new Error('manifest'); return r.json(); })
-  ]).then(function (results) {
-    var curriculum = results[0], manifest = results[1];
-    var prompt = curriculum.prompts[0];
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    opts.credentials = 'same-origin';
+    return fetch(path, opts).then(function (r) {
+      return r.json().then(function (body) {
+        return { status: r.status, body: body };
+      });
+    });
+  }
+
+  // ---------- auth ----------
+  function renderAuthBar() {
+    var bar = document.querySelector('#auth-bar');
+    if (currentUser) {
+      bar.innerHTML = '<span class="muted">' + esc(currentUser.name) + ' (' + esc(currentUser.role) + ')</span>' +
+        (currentUser.role === 'admin' ? ' <a href="/admin.html">Admin console</a>' : '') +
+        ' <button id="logout-btn" type="button">Log out</button>';
+      document.querySelector('#logout-btn').onclick = function () {
+        api('/api/auth/logout', { method: 'POST', body: '{}' }).then(function () { location.reload(); });
+      };
+    } else {
+      bar.innerHTML = '';
+    }
+    document.querySelector('#auth-card').classList.toggle('hidden', !!currentUser);
+    document.querySelector('#progress-summary').classList.toggle('hidden', !currentUser);
+  }
+
+  function authMsg(m) { document.querySelector('#auth-msg').textContent = m || ''; }
+
+  function setupAuthForms() {
+    var tabLogin = document.querySelector('#tab-login');
+    var tabReg = document.querySelector('#tab-register');
+    tabLogin.onclick = function () {
+      tabLogin.classList.add('active'); tabReg.classList.remove('active');
+      document.querySelector('#form-login').classList.remove('hidden');
+      document.querySelector('#form-register').classList.add('hidden');
+      authMsg('');
+    };
+    tabReg.onclick = function () {
+      tabReg.classList.add('active'); tabLogin.classList.remove('active');
+      document.querySelector('#form-register').classList.remove('hidden');
+      document.querySelector('#form-login').classList.add('hidden');
+      authMsg('');
+    };
+    document.querySelector('#form-login').onsubmit = function (ev) {
+      ev.preventDefault();
+      api('/api/auth/login', { method: 'POST', body: JSON.stringify({
+        email: document.querySelector('#login-email').value,
+        password: document.querySelector('#login-password').value
+      }) }).then(function (r) {
+        if (r.status === 200) { currentUser = r.body.user; onLogin(); }
+        else authMsg(r.body.error === 'invalid_credentials' ? 'Wrong email or password.' : ('Login failed: ' + r.body.error));
+      });
+    };
+    document.querySelector('#form-register').onsubmit = function (ev) {
+      ev.preventDefault();
+      api('/api/auth/register', { method: 'POST', body: JSON.stringify({
+        name: document.querySelector('#reg-name').value,
+        email: document.querySelector('#reg-email').value,
+        password: document.querySelector('#reg-password').value
+      }) }).then(function (r) {
+        if (r.status === 201) { currentUser = r.body.user; onLogin(); }
+        else if (r.body.error === 'email_taken') authMsg('That email is already registered 鈥� try logging in.');
+        else authMsg('Registration failed: ' + (r.body.detail || r.body.error));
+      });
+    };
+  }
+
+  function onLogin() {
+    renderAuthBar();
+    loadProgress();
+    renderPromptList();
+    if (currentPrompt) selectPrompt(currentPrompt);
+  }
+
+  // ---------- progress ----------
+  function loadProgress() {
+    if (!currentUser) return;
+    api('/api/progress').then(function (r) {
+      if (r.status !== 200) return;
+      progressMap = {};
+      var completed = 0;
+      r.body.progress.forEach(function (p) {
+        progressMap[p.promptId] = p.status;
+        if (p.status === 'completed') completed++;
+      });
+      document.querySelector('#progress-text').textContent =
+        completed + ' of 32 prompts completed, ' + r.body.progress.length + ' started';
+      renderPromptList();
+      renderPromptState();
+    });
+  }
+
+  function saveProgress(promptId, status) {
+    if (!currentUser) return;
+    api('/api/progress', { method: 'POST', body: JSON.stringify({ promptId: promptId, status: status }) })
+      .then(function (r) {
+        if (r.status === 200) {
+          progressMap[promptId] = status;
+          renderPromptState();
+          renderPromptList();
+          loadProgressSummaryOnly();
+        }
+      });
+  }
+
+  function loadProgressSummaryOnly() {
+    api('/api/progress').then(function (r) {
+      if (r.status !== 200) return;
+      var completed = 0;
+      r.body.progress.forEach(function (p) { if (p.status === 'completed') completed++; });
+      document.querySelector('#progress-text').textContent =
+        completed + ' of 32 prompts completed, ' + r.body.progress.length + ' started';
+    });
+  }
+
+  // ---------- prompts & audio ----------
+  function renderLangTabs() {
+    langTabsEl.innerHTML = '';
+    curriculum.supportedLanguages.forEach(function (lang) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'lang-tab' + (lang === currentLang ? ' active' : '');
+      b.textContent = lang.toUpperCase();
+      b.onclick = function () {
+        currentLang = lang;
+        renderLangTabs();
+        renderPromptList();
+        var first = curriculum.prompts.filter(function (p) { return p.language === lang; })[0];
+        if (first) selectPrompt(first);
+      };
+      langTabsEl.appendChild(b);
+    });
+  }
+
+  function renderPromptList() {
+    if (!curriculum) return;
+    promptListEl.innerHTML = '';
+    curriculum.prompts.filter(function (p) { return p.language === currentLang; }).forEach(function (p) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'prompt';
+      b.setAttribute('aria-pressed', currentPrompt && currentPrompt.id === p.id ? 'true' : 'false');
+      var st = progressMap[p.id];
+      b.innerHTML = esc(p.id) + ' ' + esc(p.text) +
+        (st ? ' <span class="st-' + esc(st) + '">[' + esc(st.replace('_', ' ')) + ']</span>' : '');
+      b.onclick = function () { selectPrompt(p); };
+      promptListEl.appendChild(b);
+    });
+  }
+
+  function renderPromptState() {
+    if (!currentPrompt) { promptStateEl.textContent = ''; return; }
+    var st = progressMap[currentPrompt.id];
+    promptStateEl.textContent = st ? ('Your status: ' + st.replace('_', ' ')) : 'Not started';
+    completeBtn.disabled = !currentUser || st === 'completed';
+  }
+
+  function selectPrompt(prompt) {
+    currentPrompt = prompt;
+    renderPromptList();
+    renderPromptState();
+    detailEl.textContent = prompt.language + ' 路 ' + prompt.text;
     var entry = manifest.entries[prompt.spokenTextKey];
-    detailEl.textContent = prompt.language + ' · ' + prompt.text;
     if (!entry || entry.status !== 'available' || !entry.src) {
-      setState('unavailable', 'Recording unavailable — this prompt has not been recorded yet.');
+      setState('unavailable', 'Recording unavailable 鈥� this prompt has not been recorded yet.');
       playBtn.disabled = true;
       return;
     }
@@ -52,19 +280,50 @@ body{font-family:system-ui,sans-serif;max-width:40rem;margin:2rem auto;line-heig
     playBtn.disabled = false;
     playBtn.onclick = function () {
       playBtn.disabled = true;
-      setState('playing', 'Playing…');
+      setState('playing', 'Playing鈥�');
       var audio = new Audio(entry.src);
       function onPlaybackFailure() {
-        setState('playback_failed', 'Playback failed — the recording exists but could not be played.');
+        setState('playback_failed', 'Playback failed 鈥� the recording exists but could not be played.');
         playBtn.disabled = false;
       }
       audio.addEventListener('error', onPlaybackFailure);
       audio.addEventListener('ended', function () {
         setState('ready', 'Ready to play.');
         playBtn.disabled = false;
+        if (currentUser && progressMap[prompt.id] !== 'completed') {
+          saveProgress(prompt.id, 'in_progress');
+        }
       });
       audio.play().catch(onPlaybackFailure);
     };
+  }
+
+  completeBtn.onclick = function () {
+    if (currentPrompt) saveProgress(currentPrompt.id, 'completed');
+  };
+
+  // ---------- init ----------
+  setupAuthForms();
+  renderAuthBar();
+
+  api('/api/auth/me').then(function (r) {
+    if (r.body && r.body.user) {
+      currentUser = r.body.user;
+      renderAuthBar();
+      loadProgress();
+    }
+  });
+
+  Promise.all([
+    fetch('/data/curriculum.json').then(function (r) { if (!r.ok) throw new Error('curriculum'); return r.json(); }),
+    fetch('/data/audio-manifest.json').then(function (r) { if (!r.ok) throw new Error('manifest'); return r.json(); })
+  ]).then(function (results) {
+    curriculum = results[0];
+    manifest = results[1];
+    renderLangTabs();
+    renderPromptList();
+    var first = curriculum.prompts.filter(function (p) { return p.language === currentLang; })[0];
+    if (first) selectPrompt(first);
   }).catch(function () {
     setState('data_error', 'Lesson data failed to load.');
   });

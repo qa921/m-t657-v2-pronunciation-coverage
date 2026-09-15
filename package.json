@@ -1,1 +1,1 @@
-{"name":"m-t657-v2-pronunciation-coverage","version":"0.1.0","scripts":{"build":"node -e \"console.log('static audio fixture ready')\""}}
+{"name":"m-t657-v2-pronunciation-coverage","version":"0.2.0","private":true,"description":"Harbor Language learner app: pronunciation audio practice with accounts, Postgres persistence, and an admin console.","scripts":{"build":"node -e \"console.log('static audio fixture ready')\""},"dependencies":{"pg":"^8.13.1"}}

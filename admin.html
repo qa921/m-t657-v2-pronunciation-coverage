@@ -1,0 +1,249 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbor Language 路 Admin</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:72rem;margin:2rem auto;line-height:1.4;padding:0 1rem}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.5}
+input,select{padding:.35rem;margin:.15rem 0}
+.card{border:1px solid #ccc;border-radius:8px;padding:1rem;margin:1rem 0}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{border-bottom:1px solid #e2e2e2;padding:.3rem .5rem;text-align:left;vertical-align:top}
+th{background:#f6f6f6}
+tr[data-uid]{cursor:pointer}
+tr[data-uid]:hover{background:#f0f6ff}
+.muted{color:#666;font-size:.9rem}
+.msg{color:#b00020}
+.badge{display:inline-block;padding:.05rem .45rem;border-radius:10px;font-size:.78rem;border:1px solid #bbb}
+.badge.admin{background:#222;color:#fff;border-color:#222}
+.hidden{display:none}
+pre{white-space:pre-wrap;font-size:.78rem;margin:0}
+</style>
+</head>
+<body>
+<main>
+<h1>Admin console</h1>
+<p class="muted"><a href="/">鈥� Learner app</a></p>
+<p id="gate">Checking access鈥�</p>
+
+<div id="app" class="hidden">
+
+  <section class="card">
+    <h2>Users</h2>
+    <div class="row">
+      <input id="u-q" placeholder="Search name or email">
+      <select id="u-role">
+        <option value="">All roles</option>
+        <option value="learner">Learners</option>
+        <option value="admin">Admins</option>
+      </select>
+      <select id="u-hasprogress">
+        <option value="">Any progress</option>
+        <option value="true">Has progress</option>
+        <option value="false">No progress</option>
+      </select>
+      <button id="u-apply" type="button">Apply</button>
+      <span id="u-total" class="muted"></span>
+    </div>
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Progress</th><th>Joined</th></tr></thead>
+      <tbody id="u-rows"></tbody>
+    </table>
+  </section>
+
+  <section id="detail-card" class="card hidden">
+    <h2>Learner detail</h2>
+    <div id="d-profile"></div>
+    <div class="row" id="d-role-actions"></div>
+    <p id="d-msg" class="msg"></p>
+    <h3>Progress</h3>
+    <table>
+      <thead><tr><th>Prompt</th><th>Status</th><th>Plays</th><th>Updated</th></tr></thead>
+      <tbody id="d-progress"></tbody>
+    </table>
+    <h3>Recent interactions</h3>
+    <table>
+      <thead><tr><th>When</th><th>Type</th><th>Prompt</th><th>Detail</th></tr></thead>
+      <tbody id="d-interactions"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Interactions</h2>
+    <div class="row">
+      <input id="i-user" placeholder="User email contains">
+      <select id="i-type">
+        <option value="">All types</option>
+        <option>register</option><option>login</option><option>logout</option>
+        <option>play</option><option>progress_update</option>
+        <option>role_change</option><option>export</option><option>bootstrap</option>
+      </select>
+      <input id="i-prompt" placeholder="Prompt id (e.g. es-01)" size="14">
+      <select id="i-lang">
+        <option value="">All languages</option>
+        <option value="es">es</option><option value="fr">fr</option>
+        <option value="ja">ja</option><option value="de">de</option>
+      </select>
+      <input type="date" id="i-from" title="From">
+      <input type="date" id="i-to" title="To">
+      <button id="i-apply" type="button">Apply</button>
+      <span id="i-total" class="muted"></span>
+    </div>
+    <table>
+      <thead><tr><th>When</th><th>User</th><th>Type</th><th>Prompt</th><th>Lang</th><th>Detail</th></tr></thead>
+      <tbody id="i-rows"></tbody>
+    </table>
+    <button id="i-more" type="button" class="hidden">Load more</button>
+  </section>
+
+  <section class="card">
+    <h2>Export <span class="muted">(admin-only, every export is audit-logged)</span></h2>
+    <div class="row">
+      <a href="/api/admin/export?format=json" target="_blank" rel="noopener">Download JSON</a>
+      <a href="/api/admin/export?format=csv" target="_blank" rel="noopener">Download CSV (users + progress)</a>
+    </div>
+  </section>
+
+</div>
+</main>
+<script>
+(function () {
+  var me = null;
+  var PAGE = 50;
+  var iOffset = 0;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function qs(id) { return document.querySelector(id); }
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    opts.credentials = 'same-origin';
+    return fetch(path, opts).then(function (r) {
+      return r.json().then(function (body) { return { status: r.status, body: body }; });
+    });
+  }
+  function fmt(ts) { return ts ? new Date(ts).toLocaleString() : ''; }
+
+  // ---------- access gate: everything below requires an admin session ----------
+  api('/api/auth/me').then(function (r) {
+    if (!r.body || !r.body.user) {
+      qs('#gate').innerHTML = 'You must <a href="/">log in</a> first.';
+      return;
+    }
+    if (r.body.user.role !== 'admin') {
+      qs('#gate').textContent = '403 - this console is restricted to administrators.';
+      return;
+    }
+    me = r.body.user;
+    qs('#gate').innerHTML = 'Signed in as <strong>' + esc(me.email) + '</strong> <span class="badge admin">admin</span>';
+    qs('#app').classList.remove('hidden');
+    loadUsers();
+    loadInteractions(true);
+  });
+
+  // ---------- users ----------
+  function loadUsers() {
+    var p = new URLSearchParams();
+    if (qs('#u-q').value.trim()) p.set('q', qs('#u-q').value.trim());
+    if (qs('#u-role').value) p.set('role', qs('#u-role').value);
+    if (qs('#u-hasprogress').value) p.set('hasProgress', qs('#u-hasprogress').value);
+    api('/api/admin/users?' + p.toString()).then(function (r) {
+      if (r.status !== 200) return;
+      qs('#u-total').textContent = r.body.total + ' user(s)';
+      qs('#u-rows').innerHTML = r.body.users.map(function (u) {
+        return '<tr data-uid="' + esc(u.id) + '">' +
+          '<td>' + esc(u.name) + '</td>' +
+          '<td>' + esc(u.email) + '</td>' +
+          '<td><span class="badge ' + (u.role === 'admin' ? 'admin' : '') + '">' + esc(u.role) + '</span></td>' +
+          '<td>' + u.progressCompleted + ' done / ' + u.progressTotal + ' started</td>' +
+          '<td>' + fmt(u.createdAt) + '</td></tr>';
+      }).join('') || '<tr><td colspan="5" class="muted">No users match these filters.</td></tr>';
+      Array.prototype.forEach.call(document.querySelectorAll('tr[data-uid]'), function (tr) {
+        tr.onclick = function () { loadDetail(tr.getAttribute('data-uid')); };
+      });
+    });
+  }
+  qs('#u-apply').onclick = loadUsers;
+
+  // ---------- learner detail ----------
+  function loadDetail(id) {
+    api('/api/admin/users/' + encodeURIComponent(id)).then(function (r) {
+      if (r.status !== 200) return;
+      var u = r.body.user;
+      qs('#detail-card').classList.remove('hidden');
+      qs('#d-msg').textContent = '';
+      qs('#d-profile').innerHTML =
+        '<p><strong>' + esc(u.name) + '</strong> &lt;' + esc(u.email) + '&gt; ' +
+        '<span class="badge ' + (u.role === 'admin' ? 'admin' : '') + '">' + esc(u.role) + '</span><br>' +
+        '<span class="muted">id ' + esc(u.id) + ' 路 joined ' + fmt(u.createdAt) + '</span></p>';
+
+      var actions = qs('#d-role-actions');
+      if (u.id === me.id) {
+        actions.innerHTML = '<span class="muted">This is your own account 鈥� another admin must change your role.</span>';
+      } else {
+        var target = u.role === 'admin' ? 'learner' : 'admin';
+        actions.innerHTML = '<button id="d-role-btn" type="button">' +
+          (target === 'admin' ? 'Promote to admin' : 'Demote to learner') + '</button>';
+        qs('#d-role-btn').onclick = function () {
+          if (!confirm('Change ' + u.email + ' from ' + u.role + ' to ' + target + '?')) return;
+          api('/api/admin/users/' + encodeURIComponent(u.id) + '/role', {
+            method: 'POST', body: JSON.stringify({ role: target })
+          }).then(function (rr) {
+            if (rr.status === 200) { loadDetail(u.id); loadUsers(); }
+            else qs('#d-msg').textContent = 'Role change rejected: ' + (rr.body.detail || rr.body.error);
+          });
+        };
+      }
+
+      qs('#d-progress').innerHTML = r.body.progress.map(function (p) {
+        return '<tr><td>' + esc(p.promptId) + '</td><td>' + esc(p.status) + '</td><td>' + p.plays + '</td><td>' + fmt(p.updatedAt) + '</td></tr>';
+      }).join('') || '<tr><td colspan="4" class="muted">No progress yet.</td></tr>';
+
+      qs('#d-interactions').innerHTML = r.body.interactions.map(function (i) {
+        return '<tr><td>' + fmt(i.createdAt) + '</td><td>' + esc(i.type) + '</td><td>' + esc(i.promptId || '') + '</td>' +
+          '<td><pre>' + esc(i.detail ? JSON.stringify(i.detail) : '') + '</pre></td></tr>';
+      }).join('') || '<tr><td colspan="4" class="muted">No interactions yet.</td></tr>';
+
+      qs('#detail-card').scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  // ---------- interactions ----------
+  function loadInteractions(reset) {
+    if (reset) { iOffset = 0; qs('#i-rows').innerHTML = ''; }
+    var p = new URLSearchParams();
+    if (qs('#i-user').value.trim()) p.set('user', qs('#i-user').value.trim());
+    if (qs('#i-type').value) p.set('type', qs('#i-type').value);
+    if (qs('#i-prompt').value.trim()) p.set('promptId', qs('#i-prompt').value.trim());
+    if (qs('#i-lang').value) p.set('language', qs('#i-lang').value);
+    if (qs('#i-from').value) p.set('from', qs('#i-from').value);
+    if (qs('#i-to').value) p.set('to', qs('#i-to').value + 'T23:59:59Z');
+    p.set('limit', PAGE);
+    p.set('offset', iOffset);
+    api('/api/admin/interactions?' + p.toString()).then(function (r) {
+      if (r.status !== 200) return;
+      qs('#i-total').textContent = r.body.total + ' interaction(s)';
+      var html = r.body.interactions.map(function (i) {
+        return '<tr><td>' + fmt(i.createdAt) + '</td><td>' + esc(i.userEmail || '(deleted)') + '</td>' +
+          '<td>' + esc(i.type) + '</td><td>' + esc(i.promptId || '') + '</td><td>' + esc(i.language || '') + '</td>' +
+          '<td><pre>' + esc(i.detail ? JSON.stringify(i.detail) : '') + '</pre></td></tr>';
+      }).join('');
+      qs('#i-rows').insertAdjacentHTML('beforeend', html || (reset ? '<tr><td colspan="6" class="muted">Nothing matches these filters.</td></tr>' : ''));
+      iOffset += r.body.interactions.length;
+      qs('#i-more').classList.toggle('hidden', iOffset >= r.body.total);
+    });
+  }
+  qs('#i-apply').onclick = function () { loadInteractions(true); };
+  qs('#i-more').onclick = function () { loadInteractions(false); };
+})();
+</script>
+</body>
+</html>

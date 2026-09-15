@@ -9,10 +9,13 @@ now with learner accounts, Postgres persistence, and an admin console.
   passwords, HttpOnly session cookies). Registration always creates a
   `learner`; no public flow can create an admin.
 - **Persistence in Postgres (Neon)**: `app_users`, `sessions`,
-  `learner_progress`, and `interactions` tables (see `db/schema.sql`). The API
-  applies the schema idempotently on cold start. The prior-state contract file
-  `data/learner-progress-prior-state.json` is kept for reference; nothing is
-  persisted to local files anymore.
+  `learner_progress`, `interactions`, and `audio_assets` tables (see
+  `db/schema.sql`). The API applies the schema idempotently on cold start. The
+  prior-state contract file `data/learner-progress-prior-state.json` is kept
+  for reference; nothing is persisted to local files anymore.
+- **Activity tracking**: every completed playback increments the per-prompt
+  `plays` counter and writes a `play` interaction; status changes write
+  `progress_update` interactions. All of it is visible in the admin console.
 - **Admin console** (`/admin.html`, admin-only):
   - Users: search by name/email, filter by role and by has/no progress.
   - Learner detail: profile, per-prompt progress, recent interactions, and
@@ -23,22 +26,28 @@ now with learner accounts, Postgres persistence, and an admin console.
   - Export: admin-only JSON/CSV export at `/api/admin/export`; every export is
     audit-logged.
 
-## Audio contract (unchanged)
+## Audio contract
 
-`data/audio-manifest.json` is the runtime manifest, generated from an audit of
-`data/curriculum.json` against the files actually present in `public/audio/`.
-It supersedes the old `data/stale-audio-manifest.json`. Each entry is keyed by
-the curriculum `spokenTextKey` and carries a `status`:
+At runtime the learner client loads the manifest from **`GET /api/manifest`**,
+which is served from the Postgres `audio_assets` table. The table is created
+and seeded idempotently by the cold-start migration from the 2026-09-15 audit
+of `data/curriculum.json` against the files actually present in
+`public/audio/`. `data/audio-manifest.json` is kept as a static snapshot of
+that audit for reference; it is no longer read at runtime.
 
-- `available` 鈥� a recording exists at `src`; playback may be attempted.
-- `unavailable` 鈥� no recording exists (`src` is `null`); the client must not
+Each entry is keyed by the curriculum `spokenTextKey` and carries a `status`:
+
+- `available` — a recording exists at `src`; playback may be attempted.
+- `unavailable` — no recording exists (`src` is `null`); the client must not
   attempt playback and must not report this as a playback failure.
 
 `index.html` still distinguishes: `loading`, `ready`, `playing`, `unavailable`
 (recording missing), `playback_failed` (recording exists but playback failed),
 and `data_error` (lesson data could not be loaded). `/audio/*` URLs are
 rewritten to `public/audio/*` by `vercel.json`, so manifest `src` paths keep
-working.
+working. When a new recording is added to `public/audio/`, an operator flips
+its `audio_assets` row to `status = 'available'` with the new `src` — no
+redeploy required.
 
 ## Coverage
 
@@ -78,3 +87,8 @@ curl -X POST https://<deployment>/api/admin/bootstrap \
 After the first admin exists, all further role changes go through the admin
 console / `POST /api/admin/users/:id/role` and require an admin session.
 The bootstrap env vars can then be removed.
+
+## Handoff
+
+See `HANDOFF.md` for the developer handoff: what is complete, and what still
+needs live deployment / auth / database / playback verification.

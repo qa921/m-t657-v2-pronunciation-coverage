@@ -199,9 +199,9 @@ input,select{padding:.35rem;margin:.15rem 0}
     });
   }
 
-  function saveProgress(promptId, status) {
+  function saveProgress(promptId, status, played) {
     if (!currentUser) return;
-    api('/api/progress', { method: 'POST', body: JSON.stringify({ promptId: promptId, status: status }) })
+    api('/api/progress', { method: 'POST', body: JSON.stringify({ promptId: promptId, status: status, played: played === true }) })
       .then(function (r) {
         if (r.status === 200) {
           progressMap[promptId] = status;
@@ -279,8 +279,9 @@ input,select{padding:.35rem;margin:.15rem 0}
       audio.addEventListener('ended', function () {
         setState('ready', 'Ready to play.');
         playBtn.disabled = false;
-        if (currentUser && progressMap[prompt.id] !== 'completed') {
-          saveProgress(prompt.id, 'in_progress');
+        if (currentUser) {
+          // Record the play (plays counter + 'play' interaction) and refresh status.
+          saveProgress(prompt.id, progressMap[prompt.id] === 'completed' ? 'completed' : 'in_progress', true);
         }
       });
       audio.play().catch(onPlaybackFailure);
@@ -305,7 +306,7 @@ input,select{padding:.35rem;margin:.15rem 0}
 
   Promise.all([
     fetch('/data/curriculum.json').then(function (r) { if (!r.ok) throw new Error('curriculum'); return r.json(); }),
-    fetch('/data/audio-manifest.json').then(function (r) { if (!r.ok) throw new Error('manifest'); return r.json(); })
+    fetch('/api/manifest').then(function (r) { if (!r.ok) throw new Error('manifest'); return r.json(); })
   ]).then(function (results) {
     curriculum = results[0];
     manifest = results[1];

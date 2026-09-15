@@ -11,6 +11,7 @@ const pool = new Pool({
 
 const SCHEMA = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS citext;
 CREATE TABLE IF NOT EXISTS app_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,

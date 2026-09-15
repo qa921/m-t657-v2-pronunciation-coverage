@@ -3,6 +3,7 @@
 -- No credentials live here; the app connects via the DATABASE_URL env var.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE TABLE IF NOT EXISTS app_users (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),

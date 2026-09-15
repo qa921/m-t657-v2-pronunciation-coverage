@@ -1,7 +1,7 @@
 'use strict';
-const { pool, migrate } = require('../_lib/db');
-const { send, readBody } = require('../_lib/http');
-const { requireUser, logInteraction } = require('../_lib/auth');
+const { pool, migrate } = require('./_lib/db');
+const { send, readBody } = require('./_lib/http');
+const { requireUser, logInteraction } = require('./_lib/auth');
 
 const PROMPT_RE = /^(es|fr|ja|de)-(0[1-9]|10)$/;
 const STATUSES = { new: true, in_progress: true, completed: true };
@@ -24,18 +24,28 @@ module.exports = async function (req, res) {
     const body = await readBody(req);
     const promptId = String(body.promptId || '');
     const status = String(body.status || '');
+    const played = body.played === true;
     if (!PROMPT_RE.test(promptId)) return send(res, 400, { error: 'invalid_prompt' });
     if (!STATUSES[status]) return send(res, 400, { error: 'invalid_status' });
 
     // Learners can only ever write their OWN progress row.
+    // `played` increments the play counter (lesson/game activity) atomically.
     const r = await pool.query(
-      `INSERT INTO learner_progress (learner_id, prompt_id, status)
-       VALUES ($1, $2, $3)
+      `INSERT INTO learner_progress (learner_id, prompt_id, status, plays)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (learner_id, prompt_id)
-       DO UPDATE SET status = EXCLUDED.status, updated_at = now()
-       RETURNING prompt_id AS "promptId", status, updated_at AS "updatedAt"`,
-      [user.id, promptId, status]
+       DO UPDATE SET status = EXCLUDED.status,
+                     plays = learner_progress.plays + EXCLUDED.plays,
+                     updated_at = now()
+       RETURNING prompt_id AS "promptId", status, plays, updated_at AS "updatedAt"`,
+      [user.id, promptId, status, played ? 1 : 0]
     );
+    if (played) {
+      await logInteraction(user.id, 'play', {
+        promptId: promptId,
+        language: promptId.slice(0, 2),
+      });
+    }
     await logInteraction(user.id, 'progress_update', {
       promptId: promptId,
       language: promptId.slice(0, 2),
